@@ -1,0 +1,17 @@
+{
+  "name": "elasticsearch-demo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "elasticsearch": "^16.7.2",
+    "install": "^0.13.0",
+    "npm": "^7.13.0"
+  }
+}

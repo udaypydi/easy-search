@@ -11,7 +11,10 @@
   "license": "ISC",
   "dependencies": {
     "elasticsearch": "^16.7.2",
+    "express": "^4.17.1",
     "install": "^0.13.0",
+    "nanoid": "^3.1.23",
+    "node-fetch": "^2.6.1",
     "npm": "^7.13.0"
   }
 }

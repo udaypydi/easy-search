@@ -13,6 +13,15 @@ const esClient = new elasticsearch.Client({
     log: 'error'
 });
 
+esClient.indices.delete({index: 'catalog-data'},function(err,resp,status) {  
+  // esClient.indices.create({
+  //   index: 'catalog-data',
+  //   }, function(error, response, status) {
+  //     console.log(error);
+  //   }
+  // );
+});
+
 function bulkIndex(index, type, data, cb) {
     let bulkBody = [];
     
@@ -47,40 +56,71 @@ function bulkIndex(index, type, data, cb) {
       );
     })
     .catch(console.err);
-  };
+};
 
 app.post('/create-mapping', (req,res) => {
-  const { index, mapping } = req.body;
-
-  esClient.indices.create({
-    index,
-    }, function(error, response, status) {
-
-        if (error) {
-          res.json(error);
+  const { fields } = req.body;
+  const customAnalyzer = {
+    "settings": {
+      "analysis": {
+        "filter": {
+          "autocomplete_filter": {
+            "type": "edge_ngram",
+            "min_gram": "1",
+            "max_gram": "40"
+          }
+        },
+        "analyzer": {
+          "custom_analyzer": {
+            "type":      "custom", 
+            "tokenizer": "standard",
+            "char_filter": [
+              "html_strip"
+            ],
+            "filter": [
+              "lowercase"
+            ]
+          },
+          "autocomplete": {
+            "filter": ["lowercase", "autocomplete_filter"],
+            "type": "custom",
+            "tokenizer": "whitespace"
+          }
         }
-        else {
-          res.json(response);
+      }
+    },
+    "mappings": {
+      "products": {
+        "properties": {
         }
-
-      // esClient.indices.putMapping({  
-      //   index,
-      //   type: 'products',
-      //   include_type_name: true,
-      //   body: {
-      //     properties: mapping,
-      //   }
-      // },function(err,resp,status){
-      //     if (err) {
-      //       res.json(err);
-      //     }
-      //     else {
-      //       res.json(resp);
-      //     }
-      // })
-
+      }
+   
     }
-  );
+  };
+
+  fields.forEach(field => {
+    customAnalyzer.mappings.products.properties[field] = {
+      "type": "text",
+      "fields": {
+        "custom_analyzer": { 
+          "type": "text",
+          "search_analyzer": "custom_analyzer",
+          "analyzer": "autocomplete"
+        }
+      }
+    }
+  });
+
+  fetch('http://localhost:9200/catalog-data?include_type_name=true', {
+    method: 'PUT', 
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(customAnalyzer),
+  }).then(res => res.json())
+  .then(json => {
+    res.json(json);
+  })
 });
 
 app.post('/bulk-sync', (req, res) => {
@@ -99,11 +139,9 @@ app.post('/bulk-sync', (req, res) => {
         fetch(dataSource)
         .then(res => res.json())
         .then(json => {
-            bulkIndex('catalog-data', 'products', json, (data) => {
-              res.json(data);
-            });
-        }).catch(err => {
-          res.json(err);
+          bulkIndex('catalog-data', 'products', json, (data) => {
+            res.json(data);
+          });
         })
       }
     })
@@ -120,8 +158,13 @@ app.get('/products', (req, res) => {
        "query": {
            "multi_match": {
                query: searchText,
-               fuzziness: 2,
-               fields: ['product_name', 'description', 'categories']
+               fields: [
+                 'product_name', 
+                 'description', 
+                 'categories', 
+                ],
+                "type" : "phrase_prefix",
+                analyzer: "custom_analyzer"
            }
        }
     };
@@ -141,3 +184,25 @@ app.listen(process.env.PORT || 3000, () => {
     console.log("connected")
 });
 
+/**
+ * 
+ *     const promisesArr = json.map((data, index) => {
+              return fetch(`http://localhost:9200/catalog-product/_bulk`, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data),
+              }).then(response => response.json())
+            });
+            Promise.all(promisesArr)
+              .then(json => {
+                res.json(json);
+              })
+              .catch(err => {
+                res.json(err);
+              })
+        }).catch(err => {
+          res.json(err);
+        })
+ */
